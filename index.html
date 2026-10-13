@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 2.1 - Sử dụng thước kẹp có du xích (0,05 mm)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#1a1a2e;color:#fff}
+#container{display:flex;height:100vh;width:100vw}
+#cc{flex:1;position:relative;background:radial-gradient(circle,#2a2a4a 0%,#0f0f1a 100%);min-height:360px}
+#title{position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.7);padding:8px 14px;border-radius:8px}
+#title h1{font-size:1.1rem;color:#4ecca3}#title p{font-size:.8rem;color:#aaa}
+#zoomwrap{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:min(900px,calc(100% - 20px));z-index:10;background:rgba(0,0,0,.75);border:2px solid #4ecca3;border-radius:8px;padding:6px 8px}
+#zoomwrap .zt{display:flex;justify-content:space-between;font-size:.8rem;color:#4ecca3;margin-bottom:4px}
+#zoomwrap label{display:inline;color:#ccc;font-weight:normal;font-size:.8rem}
+#zoomwrap input{width:auto}
+#zoom{width:100%;height:150px;display:block;border-radius:4px}
+#panel{width:390px;background:#16213e;border-left:2px solid #0f3460;padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+h2{font-size:1rem;color:#e94560;border-bottom:2px solid #e94560;padding-bottom:4px;text-transform:uppercase;margin-top:6px}
+label{display:block;margin-bottom:4px;font-size:.85rem;color:#4ecca3;font-weight:bold}
+select,input,button{width:100%;padding:8px;border-radius:4px;border:1px solid transparent;background:#0f3460;color:#fff;font-size:.9rem;outline:none}
+input[type=range]{accent-color:#e94560;padding:0}
+button{background:#e94560;font-weight:bold;cursor:pointer}
+button:hover:not(:disabled){background:#ff6b81}
+button:disabled,input:disabled{opacity:.4;cursor:not-allowed}
+.ins{font-size:.8rem;line-height:1.4;color:#ccc;background:#1a1a2e;padding:8px;border-radius:4px}
+.chip{font-size:.85rem;padding:5px 8px;border-radius:4px;background:#1a1a2e;text-align:center;color:#aaa}
+.chip.on{color:#2ecc71;border:1px solid #2ecc71}
+#msg{font-size:.85rem;min-height:1.2em}
+.good{color:#2ecc71}.warn{color:#ffb142}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{border:1px solid #0f3460;padding:5px;text-align:center}th{background:#1a1a2e;color:#4ecca3}
+.row{display:flex;align-items:center;gap:6px;margin:4px 0}.row span{white-space:nowrap;font-size:.85rem}
+.ok{border-color:#2ecc71!important;background:#14532d!important}.bad{border-color:#e94560!important;background:#5a1a2a!important}
+#calc.lock{opacity:.35;pointer-events:none}
+details{font-size:.8rem;color:#ccc;background:#1a1a2e;border-radius:4px;padding:6px 8px;margin:4px 0}
+#final{font-size:1.05rem;font-weight:bold;text-align:center;padding:8px;border:1px solid #e94560;border-radius:6px;margin-top:6px}
+@media(max-width:900px){#container{flex-direction:column;height:auto}#cc{flex:none;height:75vh}#panel{width:100%}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<div id="container">
+ <div id="cc">
+  <div id="title"><h1>THÍ NGHIỆM THƯỚC KẸP 3D</h1><p>Bài 2.1: Đo cùng một vật ở 3 vị trí khác nhau</p></div>
+  <div id="zoomwrap">
+   <div class="zt"><span>Kính lúp phóng đại vạch chia (độ chính xác 0,05 mm)</span><span><input type="checkbox" id="hint"> <label for="hint">Gợi ý vạch trùng</label></span></div>
+   <canvas id="zoom"></canvas>
+  </div>
+ </div>
+ <div id="panel">
+  <h2>1. Chọn phép đo</h2>
+  <select id="mode">
+   <option value="outer">a. Đường kính ngoài</option>
+   <option value="inner">b. Đường kính trong</option>
+   <option value="depth">c. Độ sâu lỗ trụ</option>
+  </select>
+
+  <h2>2. Thao tác đo <span id="tag" style="color:#4ecca3"></span></h2>
+  <div class="ins" id="guide"></div>
+  <button id="bPlace">① Lấy vật trên bàn, đưa vào thước kẹp</button>
+  <div>
+   <label for="slider">② Điều chỉnh thanh trượt của thước:</label>
+   <input type="range" id="slider" min="0" max="60" step="0.05" value="0">
+  </div>
+  <div class="chip" id="chip">—</div>
+  <div>
+   <label for="readIn">Số đọc được trên thước (mm):</label>
+   <input type="number" id="readIn" step="0.05" placeholder="vd: 24.35">
+  </div>
+  <button id="bRec">③ Ghi kết quả vào bảng</button>
+  <button id="bOut">④ Lấy vật ra, đặt sang vị trí khác</button>
+  <div id="msg"></div>
+
+  <h2>3. Bảng số liệu</h2>
+  <table>
+   <thead><tr><th>Lần</th><th>Vị trí đo</th><th>A<sub>i</sub> (mm)</th></tr></thead>
+   <tbody>
+    <tr><td>1</td><td>xoay 0°</td><td id="v0">---</td></tr>
+    <tr><td>2</td><td>xoay 45°</td><td id="v1">---</td></tr>
+    <tr><td>3</td><td>xoay 90°</td><td id="v2">---</td></tr>
+   </tbody>
+  </table>
+
+  <h2>4. Xử lý số liệu</h2>
+  <div id="calc" class="lock">
+   <div class="ins">Giá trị trung bình: <b>Ā = (A₁ + A₂ + A₃) / 3</b></div>
+   <div class="row"><span>Ā =</span><input id="cAvg" type="number" step="any"><span>mm</span></div>
+   <div class="ins">Sai số tuyệt đối ngẫu nhiên của từng lần đo (tự tính):</div>
+   <div class="row"><span>ΔA₁</span><input id="c1" type="number" step="any"><span>ΔA₂</span><input id="c2" type="number" step="any"><span>ΔA₃</span><input id="c3" type="number" step="any"></div>
+   <div class="ins">Sai số ngẫu nhiên trung bình (tự tính):</div>
+   <div class="row"><span>ΔĀ =</span><input id="cDm" type="number" step="any"><span>mm</span></div>
+   <div class="ins">Sai số tuyệt đối của phép đo (tự tính):</div>
+   <div class="row"><span>ΔA =</span><input id="cDA" type="number" step="any"><span>mm</span></div>
+   <details><summary>Gợi ý công thức</summary>
+    ΔAᵢ = |Aᵢ − Ā|<br>ΔĀ = (ΔA₁ + ΔA₂ + ΔA₃) / 3<br>ΔA = ΔĀ + Δ<sub>dc</sub>, với sai số dụng cụ Δ<sub>dc</sub> = 0,05 mm (bằng độ chính xác của thước).
+   </details>
+   <button id="bCheck">Kiểm tra kết quả</button>
+   <button id="bShow" style="background:#0f3460;margin-top:6px">Xem đáp án</button>
+   <div id="final" style="display:none"></div>
+  </div>
+  <button id="bReset" style="background:#0f3460">Làm lại từ đầu</button>
+ </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const V={outer:[24.35,24.40,24.30],inner:[18.20,18.15,18.25],depth:[35.50,35.55,35.45]};
+const Z0=[-8,0,8],TOL=0.006,DC=0.05;
+const GUIDE={outer:'Kéo thanh trượt để khép hai má dưới lại cho đến khi vừa chạm vật.',
+ inner:'Mở dần hai má nhọn phía trên cho đến khi chạm thành trong của lỗ.',
+ depth:'Đẩy thanh đo sâu ra cho đến khi đầu thanh chạm đáy lỗ.'};
+let S={mode:'outer',t:0,stage:'table',rd:[null,null,null]};
+const tv=()=>V[S.mode][S.t];
+
+// ---------- THREE.JS ----------
+const cc=$('cc'),scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(45,cc.clientWidth/cc.clientHeight,0.1,2000);
+camera.position.set(75,-5,250);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(cc.clientWidth,cc.clientHeight);cc.appendChild(renderer.domElement);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.target.set(75,-38,0);controls.enableDamping=true;controls.update();
+scene.add(new THREE.AmbientLight(0xffffff,.65));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(50,100,150);scene.add(dl);
+const dl2=new THREE.DirectionalLight(0x90e0ef,.4);dl2.position.set(-80,-50,-80);scene.add(dl2);
+const steel=new THREE.MeshStandardMaterial({color:0xc0c0c0,roughness:.3,metalness:.8});
+const brass=new THREE.MeshStandardMaterial({color:0xb58900,roughness:.4,metalness:.6});
+const redM=new THREE.MeshStandardMaterial({color:0xe94560});
+function box(w,h,d,x,y,z,m,p){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);p.add(o);return o;}
+const table=new THREE.Mesh(new THREE.PlaneGeometry(500,300),new THREE.MeshStandardMaterial({color:0x2c3e50}));
+table.rotation.x=-Math.PI/2;table.position.set(75,-62,0);scene.add(table);
+
+// Thước kẹp (1 đơn vị = 1 mm). Mặt đo của má cố định ở x = 0.
+const cal=new THREE.Group();scene.add(cal);
+box(178,12,3,81,0,0,steel,cal);          // thân thước, x từ -8 đến 170
+box(8,39,5,-4,-25.5,0,steel,cal);        // má dưới cố định
+box(6,36,3,3,24,1.6,steel,cal);          // má nhọn trên cố định
+const sl=new THREE.Group();cal.add(sl);  // thanh trượt: sl.position.x = số đọc (mm)
+box(51,18,7,19.5,0,0,steel,sl);          // thân du xích
+box(8,39,5,4,-25.5,0,steel,sl);          // má dưới di động
+box(6,36,3,-3,24,-1.6,steel,sl);         // má nhọn trên di động
+box(150,2,1.4,95,0,2.2,new THREE.MeshStandardMaterial({color:0xe6e6e6,metalness:.6,roughness:.3}),sl); // thanh đo sâu
+
+// Vật cần đo: trụ rỗng có đáy
+const obj=new THREE.Group();scene.add(obj);
+function build(){
+  while(obj.children.length){const c=obj.children[0];obj.remove(c);c.traverse(n=>{if(n.geometry)n.geometry.dispose();});}
+  const t=S.t,R=V.outer[t]/2,r=V.inner[t]/2,h=V.depth[t];
+  const spin=new THREE.Group();obj.add(spin);
+  const sh=new THREE.Shape();sh.absarc(0,0,R,0,Math.PI*2,false);
+  const ho=new THREE.Path();ho.absarc(0,0,r,0,Math.PI*2,true);sh.holes.push(ho);
+  spin.add(new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:h+0.2,bevelEnabled:false,curveSegments:48}),brass));
+  const sh2=new THREE.Shape();sh2.absarc(0,0,R,0,Math.PI*2,false);
+  const bot=new THREE.Mesh(new THREE.ExtrudeGeometry(sh2,{depth:5,bevelEnabled:false,curveSegments:48}),brass);
+  bot.position.z=h;spin.add(bot);
+  box(2,2,6,R+0.5,0,3,redM,spin);               // vạch đánh dấu để thấy vật được xoay
+  spin.rotation.z=-t*Math.PI/4;
+  obj.rotation.set(0,S.mode==='depth'?Math.PI/2:Math.PI,0);
+}
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+function pose(){const t=S.t;
+  if(S.mode==='outer')return V3(V.outer[t]/2,-25,Z0[t]+20);
+  if(S.mode==='inner')return V3(V.inner[t]/2,28,Z0[t]+20);
+  return V3(170,0,0);}
+const tablePose=()=>S.mode==='depth'?V3(80,-49.8,20):V3(-45,-49.8,40);
+const approach=()=>S.mode==='depth'?pose().add(V3(80,0,0)):pose().add(V3(0,0,70));
+let path=[],onDone=null;
+const go=(p,cb)=>{path=p;onDone=cb;};
+
+// ---------- KÍNH LÚP ----------
+const zc=$('zoom'),cx=zc.getContext('2d');
+function ln(x1,y1,x2,y2){cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();}
+function draw(val){
+  const W=zc.width=zc.clientWidth,H=zc.height=zc.clientHeight;
+  const sc=(W-40)/44,x0=20+3*sc,y0=Math.round(H*0.5);
+  cx.fillStyle='#cfd8dc';cx.fillRect(0,0,W,y0);
+  cx.fillStyle='#fff3c4';cx.fillRect(0,y0,W,H-y0);
+  cx.lineWidth=1;cx.strokeStyle='#000';cx.fillStyle='#000';cx.font='bold 12px Arial';cx.textAlign='center';
+  const m0=Math.floor(val)-3;
+  for(let m=m0;m<=m0+48;m++){
+    if(m<0)continue;const x=x0+(m-val)*sc;if(x<0||x>W)continue;
+    ln(x,y0,x,y0-(m%10==0?30:m%5==0?20:12));
+    if(m%10==0)cx.fillText(m/10,x,y0-36);
+  }
+  cx.textAlign='left';cx.font='11px Arial';cx.fillText('Thang chính (số = cm, mỗi vạch nhỏ = 1 mm)',6,14);
+  cx.strokeStyle='#c0392b';cx.fillStyle='#c0392b';cx.textAlign='center';cx.font='bold 12px Arial';
+  for(let j=0;j<=20;j++){
+    const x=x0+1.95*sc*j,L=j%10==0?26:j%5==0?20:14;
+    ln(x,y0,x,y0+L);if(j%2==0)cx.fillText(j/2,x,y0+L+14);
+  }
+  cx.textAlign='left';cx.font='11px Arial';cx.fillText('Du xích (20 vạch)',6,H-8);
+  cx.strokeStyle='#000';ln(0,y0,W,y0);
+  if($('hint').checked){
+    const N=Math.floor(val+1e-9),k=Math.round((val-N)*20),x=x0+1.95*sc*k;
+    cx.strokeStyle='#00b894';cx.lineWidth=3;ln(x,y0-34,x,y0+32);
+  }
+}
+
+// ---------- LOGIC ----------
+function gap(){return parseFloat($('slider').value);}
+function setGap(v){v=Math.round(v*20)/20;sl.position.x=v;$('slider').value=v;draw(v);chip();}
+const touching=()=>S.stage==='clamp'&&Math.round(gap()*20)===Math.round(tv()*20);
+function chip(){const c=$('chip');
+  if(S.stage==='clamp'){const t=touching();c.textContent=t?'✔ Má kẹp đã chạm vật':'… chưa chạm vật';c.className='chip'+(t?' on':'');}
+  else{c.textContent='—';c.className='chip';}
+  $('bRec').disabled=!touching();}
+$('slider').addEventListener('input',e=>{
+  let v=parseFloat(e.target.value);
+  if(S.stage==='clamp')v=S.mode==='outer'?Math.max(v,tv()):Math.min(v,tv());
+  setGap(v);});
+$('hint').addEventListener('change',()=>draw(gap()));
+const openGap=()=>S.mode==='outer'?tv()+10:0;
+function msg(t,c){$('msg').textContent=t;$('msg').className=c||'';}
+
+function ui(){
+  const st=S.stage,done=S.rd.every(x=>x!==null);
+  $('tag').textContent=`— lần đo ${S.t+1}/3`;
+  $('bPlace').disabled=st!=='table';
+  $('slider').disabled=!(st==='table'||st==='clamp');
+  $('readIn').disabled=st!=='clamp';
+  $('bOut').disabled=st!=='recorded';
+  $('bOut').textContent=S.t<2?'④ Lấy vật ra, đặt sang vị trí khác':'④ Lấy vật ra (hoàn tất 3 lần đo)';
+  let g='';
+  if(st==='table')g=`Vật đang nằm trên bàn. Bấm ① để đưa vật vào thước (vị trí ${S.t+1}: vật xoay ${S.t*45}° so với vạch đỏ).`;
+  else if(st==='moving')g='Đang di chuyển vật...';
+  else if(st==='clamp')g=touching()?'Má kẹp đã chạm vật. Quan sát kính lúp: đọc phần nguyên (mm) ở vạch 0 của du xích, phần lẻ ở vạch trùng (×0,05 mm). Nhập số đọc và bấm ③.':GUIDE[S.mode];
+  else if(st==='recorded')g='Đã ghi kết quả. Bấm ④ để lấy vật ra rồi đo ở vị trí khác.';
+  else g='Đã đo xong 3 lần. Hãy xử lý số liệu ở mục 4.';
+  $('guide').textContent=g;
+  for(let i=0;i<3;i++)$('v'+i).textContent=S.rd[i]===null?'---':S.rd[i].toFixed(2);
+  $('calc').classList.toggle('lock',!done);
+  chip();
+}
+$('bPlace').onclick=()=>{S.stage='moving';setGap(openGap());msg('');ui();
+  go([approach(),pose()],()=>{S.stage='clamp';ui();});};
+$('bRec').onclick=()=>{
+  const v=parseFloat($('readIn').value);
+  if(isNaN(v)){msg('Hãy nhập số đọc được vào ô trước.','warn');return;}
+  if(Math.abs(v-tv())>0.025){msg(`Số bạn nhập (${v}) chưa khớp số chỉ của thước. Đọc lại: phần nguyên ở vạch 0 du xích + (số thứ tự vạch trùng × 0,05).`,'warn');return;}
+  S.rd[S.t]=v;S.stage='recorded';msg(`✔ Đã ghi lần ${S.t+1}: ${v.toFixed(2)} mm`,'good');ui();};
+$('bOut').onclick=()=>{S.stage='moving';setGap(openGap());ui();
+  go([approach(),tablePose()],()=>{
+    if(S.t<2){S.t++;S.stage='table';build();obj.position.copy(tablePose());$('readIn').value='';msg('');}
+    else{S.stage='done';msg('Hoàn tất 3 lần đo!','good');}
+    ui();});};
+$('mode').onchange=reset;$('bReset').onclick=reset;
+function reset(){
+  S={mode:$('mode').value,t:0,stage:'table',rd:[null,null,null]};path=[];onDone=null;
+  build();obj.position.copy(tablePose());setGap(0);
+  ['readIn','cAvg','c1','c2','c3','cDm','cDA'].forEach(i=>{$(i).value='';$(i).classList.remove('ok','bad');});
+  $('final').style.display='none';msg('');ui();}
+
+// ---------- XỬ LÝ SỐ LIỆU ----------
+function expected(){const a=S.rd,avg=(a[0]+a[1]+a[2])/3,di=a.map(x=>Math.abs(x-avg)),dm=(di[0]+di[1]+di[2])/3;
+  return{avg,di,dm,dA:dm+DC};}
+function check(){
+  const e=expected(),pairs=[['cAvg',e.avg],['c1',e.di[0]],['c2',e.di[1]],['c3',e.di[2]],['cDm',e.dm],['cDA',e.dA]];
+  let all=true;
+  pairs.forEach(([id,x])=>{const el=$(id),v=parseFloat(el.value),ok=!isNaN(v)&&Math.abs(v-x)<=TOL;
+    el.classList.toggle('ok',ok);el.classList.toggle('bad',!ok);if(!ok)all=false;});
+  const f=$('final');
+  if(all){f.style.display='block';f.textContent=`A = ${e.avg.toFixed(2)} ± ${e.dA.toFixed(2)} mm`;}
+  else{f.style.display='block';f.textContent='Còn ô chưa đúng (viền đỏ). Tính lại nhé!';}
+}
+$('bCheck').onclick=check;
+$('bShow').onclick=()=>{const e=expected();
+  $('cAvg').value=e.avg.toFixed(3);$('c1').value=e.di[0].toFixed(3);$('c2').value=e.di[1].toFixed(3);
+  $('c3').value=e.di[2].toFixed(3);$('cDm').value=e.dm.toFixed(3);$('cDA').value=e.dA.toFixed(3);check();};
+
+reset();
+(function animate(){
+  requestAnimationFrame(animate);
+  if(path.length){const t=path[0],d=t.clone().sub(obj.position),l=d.length();
+    if(l<=3){obj.position.copy(t);path.shift();if(!path.length&&onDone){const f=onDone;onDone=null;f();}}
+    else obj.position.add(d.setLength(3));}
+  controls.update();renderer.render(scene,camera);
+})();
+window.addEventListener('resize',()=>{
+  camera.aspect=cc.clientWidth/cc.clientHeight;camera.updateProjectionMatrix();
+  renderer.setSize(cc.clientWidth,cc.clientHeight);draw(gap());});
+</script>
+</body>
+</html>
